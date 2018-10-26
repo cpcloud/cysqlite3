@@ -4,7 +4,7 @@ from typing import Callable
 
 from numba.types import ClassType
 
-from .cslumba import get_sqlite_db
+from .cslumba import sqlite3_address
 from .sqlite import (
     sqlite3_create_function,
     scalarfunc, stepfunc, finalizefunc, valuefunc, inversefunc, destroyfunc,
@@ -54,7 +54,7 @@ def create_function(
         Most functions are deterministic.
 
     """
-    sqlite_db = get_sqlite_db(con)
+    sqlite_db = sqlite3_address(con)
     if sqlite3_create_function(
         sqlite_db,
         name.encode('utf8'),
@@ -72,45 +72,43 @@ def create_aggregate(
     con: sqlite3.Connection,
     name: str,
     num_params: int,
-    aggregate_class: ClassType,
+    cls: ClassType,
     deterministic: bool = False
 ) -> None:
     """Register an aggregate named `name` with the SQLite connection `con`.
 
     Parameters
     ----------
-    con : sqlite3.Connection
+    con
         A connection to a SQLite database
-    name : str
+    name
         The name of this function in the database, given as a UTF-8 encoded
         string
-    num_params : int
+    num_params
         The number of arguments this function takes
-    aggregate_class : JitClass
+    cls
        This class must be decorated with @sqlite_udaf for this function to
        work. If this class has `value` and `inverse` attributes, it will be
        registered as a window function. Window functions can also be used as
        standard aggregate functions.
-    deterministic : bool
+    deterministic
         True if this function returns the same output given the same input.
         Most functions are deterministic.
 
     """
     namebytes = name.encode('utf8')
-    sqlite_db = get_sqlite_db(con)
-    if hasattr(aggregate_class, 'value') and hasattr(
-        aggregate_class, 'inverse'
-    ):
+    sqlite_db = sqlite3_address(con)
+    if hasattr(cls, 'value') and hasattr(cls, 'inverse'):
         rc = sqlite3_create_window_function(
             sqlite_db,
             namebytes,
             num_params,
             SQLITE_UTF8 | (SQLITE_DETERMINISTIC if deterministic else 0),
             None,
-            stepfunc(aggregate_class.step.address),
-            finalizefunc(aggregate_class.finalize.address),
-            valuefunc(aggregate_class.value.address),
-            inversefunc(aggregate_class.inverse.address),
+            stepfunc(cls.step.address),
+            finalizefunc(cls.finalize.address),
+            valuefunc(cls.value.address),
+            inversefunc(cls.inverse.address),
             destroyfunc(0),
         )
     else:
@@ -121,8 +119,8 @@ def create_aggregate(
             SQLITE_UTF8 | (SQLITE_DETERMINISTIC if deterministic else 0),
             None,
             scalarfunc(0),
-            stepfunc(aggregate_class.step.address),
-            finalizefunc(aggregate_class.finalize.address),
+            stepfunc(cls.step.address),
+            finalizefunc(cls.finalize.address),
         )
     if rc != SQLITE_OK:
         raise sqlite3.OperationalError(sqlite3_errmsg(sqlite_db))
