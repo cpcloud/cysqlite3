@@ -1,6 +1,8 @@
 from typing import Any, Callable
 
-from numba import njit, cfunc
+import numba
+
+from numba import cfunc, jit, njit
 from numba.ccallback import CFunc
 from numba.types import void, voidptr, intc, CPointer
 from numba.typing import Signature
@@ -10,7 +12,7 @@ from slumba.numbaext import get_sqlite3_result_function, make_arg_tuple
 
 
 def sqlite_udf(
-    signature: Signature, nogil: bool = True, **njit_kwargs: Any
+    signature: Signature, **kwargs: Any
 ) -> Callable[[Callable], CFunc]:
     """Define a custom scalar function.
 
@@ -20,12 +22,15 @@ def sqlite_udf(
         A numba signature.
     nogil
         Whether to release the GIL.
-    nijt_kwargs
+    kwargs
         Any additional keyword arguments supported by numba's jit decorator.
 
     """
     def wrapper(func: Callable) -> CFunc:
-        compiled_func = njit(signature, nogil=nogil, **njit_kwargs)(func)
+        try:
+            compiled_func = njit(signature, nogil=True, **kwargs)(func)
+        except numba.types.TypingError:
+            compiled_func = jit(signature, nogil=False, **kwargs)(func)
 
         @cfunc(void(voidptr, intc, CPointer(voidptr)))
         def scalar(ctx, argc, argv):  # pragma: no cover

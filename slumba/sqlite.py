@@ -30,6 +30,9 @@ sqlite3_result_double.restype = None
 sqlite3_result_int64.argtypes = c_void_p, c_int64
 sqlite3_result_int64.restype = None
 
+sqlite3_result_text.argtypes = c_void_p,
+sqlite3_result_text.restype = None
+
 sqlite3_result_int.argtypes = c_void_p, c_int
 sqlite3_result_int.restype = None
 
